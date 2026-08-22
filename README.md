@@ -1,4 +1,4 @@
-# commons-ci
+# Commons-CI
 
 Reusable GitHub Actions workflows compartidos entre proyectos de la
 organización [corebound-labs](https://github.com/corebound-labs).
