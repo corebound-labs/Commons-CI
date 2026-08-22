@@ -39,7 +39,7 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: write
