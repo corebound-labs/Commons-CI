@@ -1,0 +1,82 @@
+name: Semantic Version Release
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: 'Versión del SDK de .NET a instalar (ej. 10.0.x)'
+        required: true
+        type: string
+      csproj-paths:
+        description: 'Rutas de los .csproj a versionar, separadas por coma'
+        required: true
+        type: string
+    outputs:
+      new-version:
+        description: 'Versión semántica generada (sin el prefijo v)'
+        value: ${{ jobs.release.outputs.version }}
+      tag-created:
+        description: 'true si se creó un tag/release nuevo, false si la versión no cambió'
+        value: ${{ jobs.release.outputs.tag-created }}
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.gitversion.outputs.semVer }}
+      tag-created: ${{ steps.check-tag.outputs.exists == 'false' }}
+    steps:
+      - name: Checkout con historial completo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # GitVersion necesita todo el historial, no solo el último commit
+
+      - name: Instalar GitVersion
+        uses: gittools/actions/gitversion/setup@v4
+        with:
+          versionSpec: '6.x'
+
+      - name: Calcular versión
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v4
+
+      - name: Comprobar si el tag ya existe
+        id: check-tag
+        run: |
+          if git rev-parse "v${{ steps.gitversion.outputs.semVer }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configurar .NET
+        if: steps.check-tag.outputs.exists == 'false'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Actualizar versión en los .csproj
+        if: steps.check-tag.outputs.exists == 'false'
+        run: |
+          IFS=',' read -ra PATHS <<< "${{ inputs.csproj-paths }}"
+          for path in "${PATHS[@]}"; do
+            dotnet build "$path" /p:Version=${{ steps.gitversion.outputs.semVer }}
+          done
+
+      - name: Crear tag
+        if: steps.check-tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag "v${{ steps.gitversion.outputs.semVer }}"
+          git push origin "v${{ steps.gitversion.outputs.semVer }}"
+
+      - name: Crear GitHub Release
+        if: steps.check-tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.gitversion.outputs.semVer }}
+          generate_release_notes: true
