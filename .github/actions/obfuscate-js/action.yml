@@ -1,0 +1,79 @@
+name: Obfuscate JS
+description: Minifica (Terser) y ofusca (javascript-obfuscator) los .js de una carpeta, in situ.
+
+inputs:
+  path:
+    description: 'Carpeta con los .js a procesar (ej. publish/wwwroot/js)'
+    required: true
+  exclude:
+    description: 'Patrones find -name a excluir, separados por coma (ej. *.min.js,vendor*)'
+    required: false
+    default: '*.min.js'
+  node-version:
+    description: 'Versión de Node.js'
+    required: false
+    default: '22'
+  terser-version:
+    description: 'Versión de terser'
+    required: false
+    default: '5'
+  obfuscator-version:
+    description: 'Versión de javascript-obfuscator'
+    required: false
+    default: '4'
+
+runs:
+  using: composite
+  steps:
+    - name: Configurar Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Minificar y ofuscar
+      shell: bash
+      env:
+        TARGET: ${{ inputs.path }}
+        EXCLUDE: ${{ inputs.exclude }}
+        TERSER_V: ${{ inputs.terser-version }}
+        OBF_V: ${{ inputs.obfuscator-version }}
+      run: |
+        set -euo pipefail
+        [ -d "$TARGET" ] || { echo "::error::No existe la carpeta $TARGET"; exit 1; }
+
+        npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/obf" \
+          "terser@$TERSER_V" "javascript-obfuscator@$OBF_V"
+        BIN="$RUNNER_TEMP/obf/node_modules/.bin"
+
+        # Opciones conservadoras: sin renombrar globales (las vistas Razor llaman
+        # funciones globales desde atributos inline), sin self-defending ni
+        # debug-protection (rompen con devtools abierto y penalizan rendimiento).
+        cat > "$RUNNER_TEMP/obf-options.json" <<'JSON'
+        {
+          "compact": true,
+          "identifierNamesGenerator": "hexadecimal",
+          "renameGlobals": false,
+          "stringArray": true,
+          "stringArrayThreshold": 0.75,
+          "stringArrayEncoding": ["base64"],
+          "splitStrings": false,
+          "controlFlowFlattening": false,
+          "selfDefending": false,
+          "debugProtection": false,
+          "sourceMap": false
+        }
+        JSON
+
+        args=()
+        IFS=',' read -ra EX <<< "$EXCLUDE"
+        for p in "${EX[@]}"; do [ -n "$p" ] && args+=(-not -name "$p"); done
+
+        count=0
+        while IFS= read -r -d '' f; do
+          "$BIN/terser" "$f" --compress --mangle -o "$f"
+          "$BIN/javascript-obfuscator" "$f" --output "$f" --config "$RUNNER_TEMP/obf-options.json"
+          count=$((count + 1))
+        done < <(find "$TARGET" -type f -name '*.js' "${args[@]}" -print0)
+
+        echo "Procesados $count archivos en $TARGET"
+        [ "$count" -gt 0 ] || { echo "::error::No se encontró ningún .js en $TARGET"; exit 1; }
