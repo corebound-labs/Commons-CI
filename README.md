@@ -71,6 +71,31 @@ que defina cómo interpretar los mensajes de commit para cada tipo de bump.
 | `new-version`   | Versión semántica generada (sin el prefijo `v`)             |
 | `tag-created`   | `true`/`false` según si se creó un tag/release nuevo         |
 
+## Actions disponibles
+
+### `.github/actions/obfuscate-js` — Minificar y ofuscar JS
+
+Composite action (no workflow reutilizable: necesita operar sobre la carpeta
+`publish` del propio job de deploy). Pasa cada `.js` por
+[Terser](https://terser.org/) y luego por
+[javascript-obfuscator](https://github.com/javascript-obfuscator/javascript-obfuscator), in situ.
+No renombra globales, así que los handlers inline de las vistas siguen funcionando.
+
+```yaml
+- name: Ofuscar JS
+  uses: corebound-labs/Commons-CI/.github/actions/obfuscate-js@master
+  with:
+    path: ${{ github.workspace }}/publish/wwwroot/js
+```
+
+| Input                | Requerido | Descripción                                             |
+|----------------------|-----------|----------------------------------------------------------|
+| `path`               | sí        | Carpeta con los `.js` a procesar                         |
+| `exclude`            | no        | Patrones `find -name` a excluir, coma (def. `*.min.js`)  |
+| `node-version`       | no        | Node.js (def. `22`)                                      |
+| `terser-version`     | no        | terser (def. `5`)                                        |
+| `obfuscator-version` | no        | javascript-obfuscator (def. `4`)                         |
+
 ## Alcance
 
 Este repo cubre únicamente reutilización de **pipelines** (YAML de GitHub
