@@ -1,0 +1,86 @@
+name: .NET Publish + Obfuscate JS
+
+# Publica un proyecto .NET y, opcionalmente, ofusca su JS propio — sin saber
+# nada del destino final (SmarterASP, Azure, lo que sea). El repo consumidor
+# descarga el artifact resultante y hace el deploy con el paso que le
+# corresponda a su hosting. Ver Commons-CI#1 (obfuscate-js) y la discusión de
+# por qué el deploy en sí no vive aquí: cada app puede publicarse en un sitio
+# distinto, y eso cambia con el tiempo.
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: 'Versión del SDK de .NET a instalar (ej. 10.0.x)'
+        required: true
+        type: string
+      solution-path:
+        description: 'Ruta del .sln a restaurar (resuelve también proyectos referenciados)'
+        required: true
+        type: string
+      csproj-path:
+        description: 'Ruta del .csproj a publicar'
+        required: true
+        type: string
+      obfuscate-js:
+        description: 'true minifica (Terser) y ofusca (javascript-obfuscator) el JS propio tras publicar'
+        required: false
+        default: true
+        type: boolean
+      js-path:
+        description: 'Ruta del JS propio a ofuscar, relativa a la carpeta publicada (ej. wwwroot/js). Requerido si obfuscate-js es true'
+        required: false
+        default: ''
+        type: string
+      js-exclude:
+        description: 'Patrones a excluir de la ofuscación, separados por coma'
+        required: false
+        default: '*.min.js'
+        type: string
+      artifact-name:
+        description: 'Nombre del artifact con el resultado publicado, para descargar en el job de deploy'
+        required: false
+        default: 'publish'
+        type: string
+    outputs:
+      artifact-name:
+        description: 'Nombre del artifact subido (igual al input, por comodidad al encadenar jobs)'
+        value: ${{ jobs.publish.outputs.artifact-name }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ inputs.artifact-name }}
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Restaurar dependencias (solución completa)
+        run: dotnet restore "${{ inputs.solution-path }}"
+
+      - name: Publicar (Release)
+        run: dotnet publish "${{ inputs.csproj-path }}" -c Release -o "${{ github.workspace }}/publish" --no-restore
+
+      - name: Ofuscar JS propio
+        if: inputs.obfuscate-js
+        # Ruta completa, no ./.github/... — el checkout de este job es el del
+        # repo consumidor (EcoTrack, etc.), no el de Commons-CI, así que una
+        # ruta local no resolvería la action.
+        uses: corebound-labs/Commons-CI/.github/actions/obfuscate-js@master
+        with:
+          path: ${{ github.workspace }}/publish/${{ inputs.js-path }}
+          exclude: ${{ inputs.js-exclude }}
+
+      - name: Subir artifact publicado
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ github.workspace }}/publish
+          retention-days: 1

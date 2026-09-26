@@ -71,6 +71,50 @@ que defina cómo interpretar los mensajes de commit para cada tipo de bump.
 | `new-version`   | Versión semántica generada (sin el prefijo `v`)             |
 | `tag-created`   | `true`/`false` según si se creó un tag/release nuevo         |
 
+### `dotnet-publish-obfuscate.yml` — Publicar + ofuscar JS
+
+Restore, `dotnet publish` y (opcional) ofuscación del JS propio vía
+`obfuscate-js`, dejando el resultado en un artifact. Deliberadamente no
+incluye el paso de deploy en sí (msdeploy, Azure, lo que sea): cada app
+publica en un sitio distinto y eso puede cambiar, así que ese paso vive en el
+`deploy.yml` del repo consumidor, en un job separado que descarga el
+artifact.
+
+```yaml
+jobs:
+  build:
+    uses: corebound-labs/Commons-CI/.github/workflows/dotnet-publish-obfuscate.yml@master
+    with:
+      dotnet-version: '10.0.x'
+      solution-path: 'EcoTrack.sln'
+      csproj-path: 'EcoTrack/EcoTrack.csproj'
+      js-path: 'wwwroot/js' # solo el JS propio, no wwwroot/lib ni RCLs
+
+  deploy:
+    needs: build
+    runs-on: windows-latest # o lo que pida el hosting
+    steps:
+      - name: Descargar artifact publicado
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: publish
+      - name: Deploy
+        run: echo "aquí el paso específico del hosting (msdeploy, az webapp, rsync...)"
+```
+
+| Input             | Requerido | Descripción                                                        |
+|-------------------|-----------|----------------------------------------------------------------------|
+| `dotnet-version`  | sí        | Versión del SDK de .NET a instalar (ej. `10.0.x`)                    |
+| `solution-path`   | sí        | `.sln` a restaurar (resuelve también proyectos referenciados)        |
+| `csproj-path`     | sí        | `.csproj` a publicar                                                 |
+| `obfuscate-js`    | no        | Ofuscar el JS propio tras publicar (def. `true`)                     |
+| `js-path`         | no*       | Ruta del JS propio a ofuscar, relativa a la carpeta publicada (ej. `wwwroot/js`). Requerido si `obfuscate-js` es `true` |
+| `js-exclude`      | no        | Patrones a excluir de la ofuscación, coma (def. `*.min.js`)          |
+| `artifact-name`   | no        | Nombre del artifact publicado (def. `publish`)                       |
+
+Output: `artifact-name` (igual al input, para encadenar `needs.build.outputs.artifact-name` en el job de deploy sin repetirlo).
+
 ### `dotnet-tests.yml` — Tests .NET
 
 Restore, build en Release y `dotnet test`, publicando resultados con
