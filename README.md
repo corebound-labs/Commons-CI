@@ -153,7 +153,11 @@ jobs:
 | `obfuscate-js`    | no        | Ofuscar el JS propio tras publicar (def. `true`)                     |
 | `js-path`         | no*       | Ruta del JS propio a ofuscar, relativa a la carpeta publicada (ej. `wwwroot/js`). Requerido si `obfuscate-js` es `true` |
 | `js-exclude`      | no        | Patrones a excluir de la ofuscación, coma (def. `*.min.js`)          |
+| `obfuscate-rcl-js`| no        | Ofuscar también el JS de las Razor Class Libraries (ej. `UiMetadata.*`), publicado por ASP.NET Core bajo `wwwroot/_content/<PackageId>/` (def. `true`). Sin esto ese JS queda en claro aunque `obfuscate-js` sea `true` — ver nota abajo |
+| `rcl-js-path`     | no        | Carpeta de static web assets de las RCL, relativa a la publicada (def. `wwwroot/_content`) |
 | `artifact-name`   | no        | Nombre del artifact publicado (def. `publish`)                       |
+
+> **Nota — JS de RCL:** el JS de EcoTrack (o la app que sea) vive en `wwwroot/js`, pero el JS de cada Razor Class Library referenciada (`UiMetadata.Grid`, `.Elements`, etc.) vive en el `wwwroot/js` de *su propio* proyecto y ASP.NET Core lo copia al publicar bajo `wwwroot/_content/<PackageId>/js/...` — una carpeta distinta a `js-path`, que `obfuscate-js` nunca toca. `obfuscate-rcl-js` (activo por defecto) añade un segundo paso sobre `rcl-js-path` para cubrirlo. A diferencia del JS propio, esta carpeta es opcional: si la app no tiene RCLs, o ninguna trae JS, el paso se omite en vez de fallar el build (`allow-missing`/`allow-empty` en la action).
 
 Output: `artifact-name` (igual al input, para encadenar `needs.build.outputs.artifact-name` en el job de deploy sin repetirlo).
 
@@ -254,6 +258,8 @@ No renombra globales, así que los handlers inline de las vistas siguen funciona
 | `node-version`       | no        | Node.js (def. `22`)                                      |
 | `terser-version`     | no        | terser (def. `5`)                                        |
 | `obfuscator-version` | no        | javascript-obfuscator (def. `4`)                         |
+| `allow-missing`      | no        | `true` no falla si `path` no existe, lo salta con aviso — para carpetas opcionales (def. `false`) |
+| `allow-empty`        | no        | `true` no falla si `path` existe pero no tiene ningún `.js` (def. `false`) |
 
 ## Alcance
 

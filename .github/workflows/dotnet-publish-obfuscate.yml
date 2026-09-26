@@ -37,6 +37,16 @@ on:
         required: false
         default: '*.min.js'
         type: string
+      obfuscate-rcl-js:
+        description: 'true ofusca también el JS de las Razor Class Libraries (ej. UiMetadata.*), publicado por ASP.NET Core bajo wwwroot/_content/<PackageId>/. Sin esto, ese JS queda en claro aunque obfuscate-js sea true'
+        required: false
+        default: true
+        type: boolean
+      rcl-js-path:
+        description: 'Carpeta donde ASP.NET Core publica los static web assets de las RCL, relativa a la carpeta publicada'
+        required: false
+        default: 'wwwroot/_content'
+        type: string
       artifact-name:
         description: 'Nombre del artifact con el resultado publicado, para descargar en el job de deploy'
         required: false
@@ -77,6 +87,18 @@ jobs:
         with:
           path: ${{ github.workspace }}/publish/${{ inputs.js-path }}
           exclude: ${{ inputs.js-exclude }}
+
+      - name: Ofuscar JS de las Razor Class Libraries
+        if: inputs.obfuscate-js && inputs.obfuscate-rcl-js
+        # allow-missing/allow-empty en true: a diferencia del JS propio, esta
+        # carpeta es opcional — una app sin RCLs, o cuyas RCLs no traen JS, no
+        # debe romper el build por esto.
+        uses: corebound-labs/Commons-CI/.github/actions/obfuscate-js@master
+        with:
+          path: ${{ github.workspace }}/publish/${{ inputs.rcl-js-path }}
+          exclude: ${{ inputs.js-exclude }}
+          allow-missing: 'true'
+          allow-empty: 'true'
 
       - name: Subir artifact publicado
         uses: actions/upload-artifact@v4

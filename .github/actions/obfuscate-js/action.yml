@@ -21,6 +21,14 @@ inputs:
     description: 'Versión de javascript-obfuscator'
     required: false
     default: '4'
+  allow-missing:
+    description: 'true no falla si $path no existe (lo salta con un aviso) — para carpetas opcionales, ej. wwwroot/_content si la app no tiene RCLs'
+    required: false
+    default: 'false'
+  allow-empty:
+    description: 'true no falla si $path existe pero no tiene ningún .js — para carpetas opcionales'
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -37,9 +45,17 @@ runs:
         EXCLUDE: ${{ inputs.exclude }}
         TERSER_V: ${{ inputs.terser-version }}
         OBF_V: ${{ inputs.obfuscator-version }}
+        ALLOW_MISSING: ${{ inputs.allow-missing }}
+        ALLOW_EMPTY: ${{ inputs.allow-empty }}
       run: |
         set -euo pipefail
-        [ -d "$TARGET" ] || { echo "::error::No existe la carpeta $TARGET"; exit 1; }
+        if [ ! -d "$TARGET" ]; then
+          if [ "$ALLOW_MISSING" = "true" ]; then
+            echo "No existe $TARGET, se omite (allow-missing: true)."
+            exit 0
+          fi
+          echo "::error::No existe la carpeta $TARGET"; exit 1
+        fi
 
         npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/obf" \
           "terser@$TERSER_V" "javascript-obfuscator@$OBF_V"
@@ -76,4 +92,6 @@ runs:
         done < <(find "$TARGET" -type f -name '*.js' "${args[@]}" -print0)
 
         echo "Procesados $count archivos en $TARGET"
-        [ "$count" -gt 0 ] || { echo "::error::No se encontró ningún .js en $TARGET"; exit 1; }
+        if [ "$count" -eq 0 ] && [ "$ALLOW_EMPTY" != "true" ]; then
+          echo "::error::No se encontró ningún .js en $TARGET"; exit 1
+        fi
