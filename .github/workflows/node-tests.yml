@@ -1,0 +1,47 @@
+name: Node Tests
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Versión de Node.js a instalar (ej. 20)'
+        required: false
+        default: '20'
+        type: string
+      working-directory:
+        description: 'Carpeta del proyecto Node a testear'
+        required: true
+        type: string
+      test-command:
+        description: 'Comando de test a ejecutar'
+        required: false
+        default: 'npm test'
+        type: string
+      use-npm-ci:
+        description: 'true usa "npm ci" con cache (requiere package-lock.json commiteado); false usa "npm install"'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  test-js:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.use-npm-ci && 'npm' || '' }}
+          cache-dependency-path: ${{ inputs.use-npm-ci && format('{0}/package-lock.json', inputs.working-directory) || '' }}
+
+      - name: Instalar dependencias
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.use-npm-ci && 'npm ci' || 'npm install' }}
+
+      - name: Ejecutar tests
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.test-command }}
