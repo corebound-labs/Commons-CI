@@ -71,6 +71,48 @@ que defina cómo interpretar los mensajes de commit para cada tipo de bump.
 | `new-version`   | Versión semántica generada (sin el prefijo `v`)             |
 | `tag-created`   | `true`/`false` según si se creó un tag/release nuevo         |
 
+### `pages-deploy.yml` — Deploy a GitHub Pages
+
+Cubre tanto un sitio estático sin build (`docs`, se sube el repo tal cual)
+como uno que necesita compilar antes (`cv-martin`, con su propio script de
+build). Repo público o privado, de la org o personal: solo hace falta que el
+repo consumidor tenga Pages habilitado.
+
+```yaml
+# Sin build (ej. docs)
+on:
+  push:
+    branches: [master]
+
+jobs:
+  pages:
+    uses: corebound-labs/Commons-CI/.github/workflows/pages-deploy.yml@master
+    with:
+      publish-path: '.' # opcional, por defecto '.'
+```
+
+```yaml
+# Con build (ej. cv-martin)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  pages:
+    uses: corebound-labs/Commons-CI/.github/workflows/pages-deploy.yml@master
+    with:
+      build-command: 'npm run build'
+      publish-path: 'dist'
+```
+
+| Input             | Requerido | Descripción                                                        |
+|-------------------|-----------|------------------------------------------------------------------------|
+| `publish-path`    | no        | Carpeta a publicar (def. `.`)                                          |
+| `build-command`   | no        | Comando de build antes de publicar (def. vacío = no hay build)         |
+| `node-version`    | no        | Node.js, solo si `build-command` no está vacío (def. `22`)             |
+| `use-npm-ci`      | no        | `true` usa `npm ci` con cache (requiere lockfile); `false` usa `npm install` (def. `true`) |
+
 ### `dotnet-publish-obfuscate.yml` — Publicar + ofuscar JS
 
 Restore, `dotnet publish` y (opcional) ofuscación del JS propio vía
