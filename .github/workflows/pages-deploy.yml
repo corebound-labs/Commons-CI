@@ -1,0 +1,75 @@
+name: Deploy to GitHub Pages
+
+on:
+  workflow_call:
+    inputs:
+      publish-path:
+        description: 'Carpeta a publicar en Pages (ej. "." para el repo tal cual, "dist" si hay build)'
+        required: false
+        default: '.'
+        type: string
+      build-command:
+        description: 'Comando de build a correr antes de publicar (vacío = no hay build, se sube el repo tal cual)'
+        required: false
+        default: ''
+        type: string
+      node-version:
+        description: 'Versión de Node.js, solo si build-command no está vacío'
+        required: false
+        default: '22'
+        type: string
+      use-npm-ci:
+        description: 'true usa "npm ci" con cache (requiere package-lock.json commiteado); false usa "npm install". Solo si build-command no está vacío'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        if: inputs.build-command != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.use-npm-ci && 'npm' || '' }}
+
+      - name: Instalar dependencias
+        if: inputs.build-command != ''
+        run: ${{ inputs.use-npm-ci && 'npm ci' || 'npm install' }}
+
+      - name: Build
+        if: inputs.build-command != ''
+        run: ${{ inputs.build-command }}
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+
+      - name: Subir artifact de Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ inputs.publish-path }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy a GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
