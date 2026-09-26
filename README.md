@@ -71,6 +71,79 @@ que defina cómo interpretar los mensajes de commit para cada tipo de bump.
 | `new-version`   | Versión semántica generada (sin el prefijo `v`)             |
 | `tag-created`   | `true`/`false` según si se creó un tag/release nuevo         |
 
+### `dotnet-tests.yml` — Tests .NET
+
+Restore, build en Release y `dotnet test`, publicando resultados con
+`dorny/test-reporter`.
+
+```yaml
+jobs:
+  test:
+    uses: corebound-labs/Commons-CI/.github/workflows/dotnet-tests.yml@master
+    with:
+      dotnet-version: '10.0.x'
+      solution-path: 'EcoTrack.sln' # opcional, por defecto '.'
+```
+
+| Input             | Requerido | Descripción                                          |
+|-------------------|-----------|-------------------------------------------------------|
+| `dotnet-version`  | sí        | Versión del SDK de .NET a instalar (ej. `10.0.x`)      |
+| `solution-path`   | no        | `.sln`/`.csproj` a restaurar/compilar/testear (def. `.`) |
+
+### `node-tests.yml` — Tests Node (Vitest/Jest)
+
+Instala Node, dependencias y corre el comando de test indicado en la carpeta
+del proyecto.
+
+```yaml
+jobs:
+  test-js:
+    uses: corebound-labs/Commons-CI/.github/workflows/node-tests.yml@master
+    with:
+      working-directory: 'Commons/UIMetadata/UiMetadata.Grid'
+      node-version: '20'   # opcional, def. '20'
+      test-command: 'npm test' # opcional, def. 'npm test'
+      use-npm-ci: false    # opcional, def. false — true exige package-lock.json commiteado
+```
+
+| Input                | Requerido | Descripción                                                        |
+|-----------------------|-----------|----------------------------------------------------------------------|
+| `working-directory`  | sí        | Carpeta del proyecto Node a testear                                  |
+| `node-version`       | no        | Node.js (def. `20`)                                                  |
+| `test-command`       | no        | Comando de test (def. `npm test`)                                    |
+| `use-npm-ci`         | no        | `true` usa `npm ci` con cache (requiere lockfile); `false` usa `npm install` (def. `false`) |
+
+### `nuget-vulnerability-scan.yml` — Paquetes NuGet vulnerables
+
+Restore + `dotnet list package --vulnerable --include-transitive`, fallando
+el job si encuentra algo. Pensado para correr en PR y también en cron
+(`schedule`) desde el repo consumidor, para detectar CVEs nuevos sin cambios
+de código.
+
+```yaml
+on:
+  pull_request:
+    branches: [develop, master]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vulnerable-packages:
+    uses: corebound-labs/Commons-CI/.github/workflows/nuget-vulnerability-scan.yml@master
+    with:
+      dotnet-version: '10.0.x'
+      solution-path: 'EcoTrack.sln' # opcional, por defecto '.'
+```
+
+| Input             | Requerido | Descripción                                          |
+|-------------------|-----------|-------------------------------------------------------|
+| `dotnet-version`  | sí        | Versión del SDK de .NET a instalar (ej. `10.0.x`)      |
+| `solution-path`   | no        | `.sln`/`.csproj` a restaurar/escanear (def. `.`)       |
+
 ## Actions disponibles
 
 ### `.github/actions/obfuscate-js` — Minificar y ofuscar JS

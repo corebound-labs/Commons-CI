@@ -1,0 +1,44 @@
+name: .NET Tests
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: 'Versión del SDK de .NET a instalar (ej. 10.0.x)'
+        required: true
+        type: string
+      solution-path:
+        description: 'Ruta del .sln o .csproj a restaurar/compilar/testear'
+        required: false
+        default: '.'
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Restaurar dependencias
+        run: dotnet restore "${{ inputs.solution-path }}"
+
+      - name: Compilar
+        run: dotnet build "${{ inputs.solution-path }}" --no-restore --configuration Release
+
+      - name: Ejecutar tests
+        run: dotnet test "${{ inputs.solution-path }}" --no-build --configuration Release --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults
+
+      - name: Publicar resultados de test
+        uses: dorny/test-reporter@v3
+        if: always()
+        with:
+          name: Resultados de tests
+          path: './TestResults/*.trx'
+          reporter: dotnet-trx
