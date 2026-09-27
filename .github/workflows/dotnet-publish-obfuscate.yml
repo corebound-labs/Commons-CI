@@ -72,8 +72,17 @@ jobs:
       NUGET_GITHUB_TOKEN: ${{ secrets.NUGET_FEED_TOKEN }}
 
     steps:
-      - name: Checkout código
+      # fetch-depth: 0 (historial + tags completos) — el build de abajo corre
+      # `git describe --tags` (ver AppVersion.cs/SetVersionFromGit en el
+      # .csproj consumidor) para mostrar la versión real en la app. Con el
+      # shallow-clone por defecto (fetch-depth: 1) ese describe no encontraba
+      # ningún tag y la app mostraba siempre "1.0.0" en vez de, p.ej.,
+      # "1.0.0-263" — el tag SÍ se creaba bien (ver semver-release.yml), solo
+      # no llegaba a mostrarse.
+      - name: Checkout código (historial completo, para git describe)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Configurar .NET
         uses: actions/setup-dotnet@v4
