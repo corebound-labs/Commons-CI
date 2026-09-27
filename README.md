@@ -156,6 +156,7 @@ jobs:
 | `obfuscate-rcl-js`| no        | Ofuscar también el JS de las Razor Class Libraries (ej. `UiMetadata.*`), publicado por ASP.NET Core bajo `wwwroot/_content/<PackageId>/` (def. `true`). Sin esto ese JS queda en claro aunque `obfuscate-js` sea `true` — ver nota abajo |
 | `rcl-js-path`     | no        | Carpeta de static web assets de las RCL, relativa a la publicada (def. `wwwroot/_content`) |
 | `artifact-name`   | no        | Nombre del artifact publicado (def. `publish`)                       |
+| `nuget-feed-url`  | no        | URL de un feed NuGet privado a agregar antes de restaurar (def. `''` = ninguno). Ver "Consumir un feed NuGet privado" más abajo |
 
 > **Nota — JS de RCL:** el JS de EcoTrack (o la app que sea) vive en `wwwroot/js`, pero el JS de cada Razor Class Library referenciada (`UiMetadata.Grid`, `.Elements`, etc.) vive en el `wwwroot/js` de *su propio* proyecto y ASP.NET Core lo copia al publicar bajo `wwwroot/_content/<PackageId>/js/...` — una carpeta distinta a `js-path`, que `obfuscate-js` nunca toca. `obfuscate-rcl-js` (activo por defecto) añade un segundo paso sobre `rcl-js-path` para cubrirlo. A diferencia del JS propio, esta carpeta es opcional: si la app no tiene RCLs, o ninguna trae JS, el paso se omite en vez de fallar el build (`allow-missing`/`allow-empty` en la action).
 
@@ -179,6 +180,7 @@ jobs:
 |-------------------|-----------|-------------------------------------------------------|
 | `dotnet-version`  | sí        | Versión del SDK de .NET a instalar (ej. `10.0.x`)      |
 | `solution-path`   | no        | `.sln`/`.csproj` a restaurar/compilar/testear (def. `.`) |
+| `nuget-feed-url`  | no        | URL de un feed NuGet privado a agregar antes de restaurar (def. `''` = ninguno). Ver "Consumir un feed NuGet privado" más abajo |
 
 ### `node-tests.yml` — Tests Node (Vitest/Jest)
 
@@ -233,6 +235,69 @@ jobs:
 |-------------------|-----------|-------------------------------------------------------|
 | `dotnet-version`  | sí        | Versión del SDK de .NET a instalar (ej. `10.0.x`)      |
 | `solution-path`   | no        | `.sln`/`.csproj` a restaurar/escanear (def. `.`)       |
+| `nuget-feed-url`  | no        | URL de un feed NuGet privado a agregar antes de restaurar (def. `''` = ninguno). Ver "Consumir un feed NuGet privado" más abajo |
+
+### `dotnet-nuget-publish.yml` — Empaquetar y publicar en GitHub Packages
+
+Empaqueta (`dotnet pack`) cada proyecto packable de la solución y lo publica
+al feed de GitHub Packages **del propio repo que llama** al workflow, con el
+`GITHUB_TOKEN` nativo (no un PAT — eso solo hace falta para *consumir* el
+feed desde otro repo, ver más abajo). Pensado para encadenarse después de
+`semver-release.yml`, usando la versión que ese job calculó.
+
+```yaml
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  version-and-release:
+    uses: corebound-labs/Commons-CI/.github/workflows/semver-release.yml@master
+    with:
+      dotnet-version: '10.0.x'
+      csproj-paths: 'Commons.CrudOrm/Commons.CrudOrm.csproj,...'
+    secrets: inherit
+
+  publish:
+    needs: version-and-release
+    if: needs.version-and-release.outputs.tag-created == 'true'
+    uses: corebound-labs/Commons-CI/.github/workflows/dotnet-nuget-publish.yml@master
+    with:
+      dotnet-version: '10.0.x'
+      solution-path: 'Commons.slnx'
+      package-version: ${{ needs.version-and-release.outputs.new-version }}
+    secrets: inherit
+```
+
+| Input             | Requerido | Descripción                                                        |
+|-------------------|-----------|------------------------------------------------------------------------|
+| `dotnet-version`  | sí        | Versión del SDK de .NET a instalar (ej. `10.0.x`)                    |
+| `solution-path`   | sí        | `.sln`/`.slnx` a restaurar/compilar/empaquetar                       |
+| `package-version` | sí        | Versión a estampar en cada paquete (ej. la de `semver-release.yml`)  |
+
+## Consumir un feed NuGet privado
+
+Un repo que dependa de paquetes de un feed privado (ej. `EcoTrack` consumiendo
+`corebound-labs/Commons` vía GitHub Packages) pasa `nuget-feed-url` a
+`dotnet-tests.yml`/`dotnet-publish-obfuscate.yml`/`nuget-vulnerability-scan.yml`,
+más `secrets: inherit` para que el workflow reusable pueda leer
+`NUGET_FEED_TOKEN` (un secret que el repo consumidor debe definir: un PAT con
+scope `read:packages`, ya que el `GITHUB_TOKEN` de un repo NO puede leer los
+paquetes de otro):
+
+```yaml
+jobs:
+  test:
+    uses: corebound-labs/Commons-CI/.github/workflows/dotnet-tests.yml@master
+    with:
+      dotnet-version: '10.0.x'
+      solution-path: 'EcoTrack.sln'
+      nuget-feed-url: 'https://nuget.pkg.github.com/corebound-labs/index.json'
+    secrets: inherit
+```
+
+Vacío (default) = comportamiento idéntico al de antes de que este input
+existiera — un repo sin dependencias privadas no necesita tocar nada.
 
 ## Actions disponibles
 
@@ -263,7 +328,9 @@ No renombra globales, así que los handlers inline de las vistas siguen funciona
 
 ## Alcance
 
-Este repo cubre únicamente reutilización de **pipelines** (YAML de GitHub
-Actions). La reutilización de **código** C# compartido (`Commons.CrudOrm`,
-`Commons.Infisical`, etc. como paquetes NuGet vía GitHub Packages) es un
-alcance distinto, no cubierto aquí.
+Este repo cubre reutilización de **pipelines** (YAML de GitHub Actions),
+incluyendo empaquetar/publicar/consumir paquetes NuGet privados
+(`dotnet-nuget-publish.yml`, `nuget-feed-url`). El **código** C# compartido
+en sí (`Commons.CrudOrm`, `Commons.Infisical`, etc.) vive en
+[corebound-labs/Commons](https://github.com/corebound-labs/Commons), un repo
+distinto — acá solo el pipeline que lo empaqueta/publica/permite consumir.

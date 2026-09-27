@@ -1,0 +1,61 @@
+name: .NET Pack + Publish (GitHub Packages)
+
+# Empaqueta cada proyecto packable de la solución y lo publica al feed GitHub
+# Packages DEL PROPIO REPO que llama a este workflow (ej. corebound-labs/
+# Commons) — usa el GITHUB_TOKEN nativo (requiere permissions.packages: write
+# en el workflow que llama, ver publish.yml de Commons), no un PAT: publicar
+# en el feed del propio repo no lo necesita. Eso es distinto de CONSUMIRLO
+# desde otro repo (ej. EcoTrack), que sí necesita un PAT — ver el input
+# nuget-feed-url de dotnet-tests.yml/dotnet-publish-obfuscate.yml/
+# nuget-vulnerability-scan.yml.
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: 'Versión del SDK de .NET a instalar (ej. 10.0.x)'
+        required: true
+        type: string
+      solution-path:
+        description: 'Ruta del .sln/.slnx a restaurar/compilar/empaquetar'
+        required: true
+        type: string
+      package-version:
+        description: 'Versión a estampar en cada paquete (ej. la que calculó semver-release.yml)'
+        required: true
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Restaurar dependencias
+        run: dotnet restore "${{ inputs.solution-path }}"
+
+      - name: Compilar
+        run: dotnet build "${{ inputs.solution-path }}" --no-restore --configuration Release /p:Version=${{ inputs.package-version }}
+
+      - name: Empaquetar
+        run: dotnet pack "${{ inputs.solution-path }}" --no-build --configuration Release /p:Version=${{ inputs.package-version }} -o "${{ github.workspace }}/nupkgs"
+
+      - name: Publicar en GitHub Packages
+        # --skip-duplicate: un re-run del job (ej. tras un fallo de red en el
+        # push) no rompe el pipeline solo porque alguna versión ya se hubiera
+        # publicado en un intento anterior.
+        run: |
+          dotnet nuget push "${{ github.workspace }}/nupkgs/*.nupkg" \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key "${{ secrets.GITHUB_TOKEN }}" \
+            --skip-duplicate
