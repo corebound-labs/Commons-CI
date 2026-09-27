@@ -182,6 +182,7 @@ jobs:
 | `dotnet-version`  | sí        | Versión del SDK de .NET a instalar (ej. `10.0.x`)      |
 | `solution-path`   | no        | `.sln`/`.csproj` a restaurar/compilar/testear (def. `.`) |
 | `nuget-feed-url`  | no        | URL de un feed NuGet privado a agregar antes de restaurar (def. `''` = ninguno). Ver "Consumir un feed NuGet privado" más abajo |
+| `fail-on-empty-test-report` | no | `false` tolera una solución sin ningún proyecto de test (def. `true` = preserva el comportamiento de siempre: sin `.trx` es una falla real) |
 
 ### `node-tests.yml` — Tests Node (Vitest/Jest)
 
