@@ -17,6 +17,11 @@ on:
         required: false
         default: ''
         type: string
+      fail-on-empty-test-report:
+        description: 'false tolera una solución sin ningún proyecto de test (ej. un repo de librerías puras, como corebound-labs/Commons) — dotnet test no genera .trx y el paso de reporte, que antes fallaba igual, se omite en vez de marcar el job en rojo. true (default) preserva el comportamiento de siempre: sin .trx es una señal real de que algo se rompió.'
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   test:
@@ -54,3 +59,4 @@ jobs:
           name: Resultados de tests
           path: './TestResults/*.trx'
           reporter: dotnet-trx
+          fail-on-empty: ${{ inputs.fail-on-empty-test-report }}
