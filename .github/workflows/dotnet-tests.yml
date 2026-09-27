@@ -12,11 +12,6 @@ on:
         required: false
         default: '.'
         type: string
-      nuget-feed-url:
-        description: 'URL de un feed NuGet privado a agregar antes de restaurar (ej. https://nuget.pkg.github.com/corebound-labs/index.json, ver corebound-labs/Commons). Vacío (default) = no agrega ninguno, comportamiento idéntico al de antes de este input.'
-        required: false
-        default: ''
-        type: string
       fail-on-empty-test-report:
         description: 'false tolera una solución sin ningún proyecto de test (ej. un repo de librerías puras, como corebound-labs/Commons) — dotnet test no genera .trx y el paso de reporte, que antes fallaba igual, se omite en vez de marcar el job en rojo. true (default) preserva el comportamiento de siempre: sin .trx es una señal real de que algo se rompió.'
         required: false
@@ -26,6 +21,18 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # NUGET_GITHUB_ACTOR/NUGET_GITHUB_TOKEN: convención fija con la que
+    # nuget.config de un consumidor (ver corebound-labs/EcoTrack) resuelve las
+    # credenciales del feed privado de corebound-labs/Commons — no agregamos
+    # ninguna fuente nueva acá (eso ya lo declara el nuget.config del propio
+    # repo checkouteado; agregarla de nuevo choca con "source already added").
+    # Si el repo no tiene ese feed configurado, estas dos env vars quedan sin
+    # uso, sin ningún efecto. Requiere que el caller invoque este workflow con
+    # `secrets: inherit` y tenga un secret NUGET_FEED_TOKEN (PAT con scope
+    # read:packages) — ver README de corebound-labs/Commons.
+    env:
+      NUGET_GITHUB_ACTOR: ${{ github.actor }}
+      NUGET_GITHUB_TOKEN: ${{ secrets.NUGET_FEED_TOKEN }}
 
     steps:
       - name: Checkout código
@@ -35,13 +42,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
-
-      # Requiere que el caller invoque este workflow con `secrets: inherit`
-      # (igual que ya hace release.yml) y tenga un secret NUGET_FEED_TOKEN
-      # (PAT con scope read:packages) — ver README de corebound-labs/Commons.
-      - name: Agregar feed NuGet privado
-        if: inputs.nuget-feed-url != ''
-        run: dotnet nuget add source "${{ inputs.nuget-feed-url }}" --name private-feed --username github --password "${{ secrets.NUGET_FEED_TOKEN }}" --store-password-in-clear-text
 
       - name: Restaurar dependencias
         run: dotnet restore "${{ inputs.solution-path }}"

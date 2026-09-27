@@ -52,11 +52,6 @@ on:
         required: false
         default: 'publish'
         type: string
-      nuget-feed-url:
-        description: 'URL de un feed NuGet privado a agregar antes de restaurar (ej. https://nuget.pkg.github.com/corebound-labs/index.json, ver corebound-labs/Commons). Vacío (default) = no agrega ninguno, comportamiento idéntico al de antes de este input.'
-        required: false
-        default: ''
-        type: string
     outputs:
       artifact-name:
         description: 'Nombre del artifact subido (igual al input, por comodidad al encadenar jobs)'
@@ -67,6 +62,14 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       artifact-name: ${{ inputs.artifact-name }}
+    # NUGET_GITHUB_ACTOR/NUGET_GITHUB_TOKEN: convención fija con la que
+    # nuget.config de un consumidor (ver corebound-labs/EcoTrack) resuelve las
+    # credenciales del feed privado de corebound-labs/Commons — sin efecto si
+    # el repo no tiene ese feed configurado. Requiere `secrets: inherit` en el
+    # caller y un secret NUGET_FEED_TOKEN (PAT read:packages).
+    env:
+      NUGET_GITHUB_ACTOR: ${{ github.actor }}
+      NUGET_GITHUB_TOKEN: ${{ secrets.NUGET_FEED_TOKEN }}
 
     steps:
       - name: Checkout código
@@ -76,13 +79,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
-
-      # Requiere que el caller invoque este workflow con `secrets: inherit`
-      # (igual que ya hace release.yml) y tenga un secret NUGET_FEED_TOKEN
-      # (PAT con scope read:packages) — ver README de corebound-labs/Commons.
-      - name: Agregar feed NuGet privado
-        if: inputs.nuget-feed-url != ''
-        run: dotnet nuget add source "${{ inputs.nuget-feed-url }}" --name private-feed --username github --password "${{ secrets.NUGET_FEED_TOKEN }}" --store-password-in-clear-text
 
       - name: Restaurar dependencias (solución completa)
         run: dotnet restore "${{ inputs.solution-path }}"
