@@ -63,6 +63,7 @@ que defina cómo interpretar los mensajes de commit para cada tipo de bump.
 |-------------------|-----------|-----------------------------------------------------------|
 | `dotnet-version`  | sí        | Versión del SDK de .NET a instalar (ej. `10.0.x`)         |
 | `csproj-paths`    | sí        | Rutas de los `.csproj` a versionar, separadas por coma    |
+| `nuget-feed-url`  | no        | URL de un feed NuGet privado a agregar antes del `dotnet build` que estampa la versión (def. `''` = ninguno). Ver "Consumir un feed NuGet privado" más abajo |
 
 #### Outputs
 

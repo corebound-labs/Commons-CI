@@ -11,6 +11,11 @@ on:
         description: 'Rutas de los .csproj a versionar, separadas por coma'
         required: true
         type: string
+      nuget-feed-url:
+        description: 'URL de un feed NuGet privado a agregar antes del dotnet build que estampa la versión (ej. https://nuget.pkg.github.com/corebound-labs/index.json, ver corebound-labs/Commons). Vacío (default) = no agrega ninguno, comportamiento idéntico al de antes de este input.'
+        required: false
+        default: ''
+        type: string
     outputs:
       new-version:
         description: 'Versión semántica generada (sin el prefijo v)'
@@ -57,6 +62,15 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
+
+      # Requiere que el caller invoque este workflow con `secrets: inherit`
+      # y tenga un secret NUGET_FEED_TOKEN (PAT con scope read:packages) —
+      # ver README de corebound-labs/Commons. dotnet build (paso de abajo)
+      # restaura implícitamente, así que sin esto fallaría con 401/NU1301
+      # apenas alguno de los csproj-paths dependa del feed privado.
+      - name: Agregar feed NuGet privado
+        if: steps.check-tag.outputs.exists == 'false' && inputs.nuget-feed-url != ''
+        run: dotnet nuget add source "${{ inputs.nuget-feed-url }}" --name private-feed --username github --password "${{ secrets.NUGET_FEED_TOKEN }}" --store-password-in-clear-text
 
       - name: Actualizar versión en los .csproj
         if: steps.check-tag.outputs.exists == 'false'
