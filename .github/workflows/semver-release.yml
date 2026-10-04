@@ -57,7 +57,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Reglas: feat -> major, fix -> minor, cualquier otro tipo mantiene el núcleo X.Y.Z.
+          # Reglas: feat -> minor (1.309.0 -> 1.310.0), fix -> patch (1.309.0 -> 1.309.1), `!` (feat!: / fix!:) -> major;
+          # cualquier otro tipo mantiene el núcleo X.Y.Z.
           # Sufijo: -MMddn, con n = número de build del día (1, 2, 3...). Ej.: 10043 = 3.ª build del 4 de octubre.
           # Sin separador, a partir de la build 10 del día el orden NuGet deja de ser cronológico
           # (100410 > 10051); con ceros a la izquierda (enero-septiembre) tampoco es SemVer estricto.
@@ -88,14 +89,16 @@ jobs:
             # shellcheck disable=SC2086
             while IFS= read -r subject; do
               case "$subject" in
-                feat:*|feat\(*\)*:*|feat!:*) bump=major; break ;;
-                fix:*|fix\(*\)*:*|fix!:*) bump=minor ;;
+                feat!:*|feat\(*\)!:*|fix!:*|fix\(*\)!:*) bump=major; break ;;
+                feat:*|feat\(*\):*) bump=minor ;;
+                fix:*|fix\(*\):*) [ "$bump" = none ] && bump=patch ;;
               esac
             done < <(git log --format=%s $range_args)
 
             case "$bump" in
               major) major=$((major + 1)); minor=0; patch=0 ;;
               minor) minor=$((minor + 1)); patch=0 ;;
+              patch) patch=$((patch + 1)) ;;
             esac
 
             day=$(TZ="$VERSION_TZ" date +%m%d)
