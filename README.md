@@ -12,13 +12,15 @@ Calcula la versión del proyecto a partir de los mensajes de commit
 ([Conventional Commits](https://www.conventionalcommits.org/)) desde el último
 tag `v*`, y:
 
-- `feat:` sube el **major**; `fix:` sube el **minor**. Cualquier otro tipo
-  (`docs`, `chore`, `refactor`, `test`, `ci`…) **no cambia** `X.Y.Z`: por eso los
-  commits deben ser solo `feat` o `fix` si se quiere que la versión avance. Gana
-  el bump más alto entre los commits nuevos (incluidos los de ramas fusionadas).
+- `feat:` sube el **minor** (`1.309.0` → `1.310.0`); `fix:` sube el **patch**
+  (`1.309.0` → `1.309.1`); `feat!:`/`fix!:` (cambio incompatible) suben el
+  **major**. Cualquier otro tipo (`docs`, `chore`, `refactor`, `test`, `ci`…)
+  **no cambia** `X.Y.Z`: por eso los commits deben ser solo `feat` o `fix` si se
+  quiere que la versión avance. Gana el bump más alto entre los commits nuevos
+  (incluidos los de ramas fusionadas).
 - El sufijo es `-MMddn`: día (`MMdd`, en la zona horaria del input `timezone`,
   por defecto `Europe/Madrid`) seguido del número de build de ese día, sin
-  separador. Ej.: `2.0.0-10043` es la tercera versión del 4 de octubre.
+  separador. Ej.: `1.310.0-10043` es la tercera versión del 4 de octubre.
   Limitaciones conocidas: desde la build 10 del día el orden NuGet/SemVer deja
   de ser cronológico (`100410` > `10051`), y de enero a septiembre queda un cero
   inicial (`01041`), que SemVer estricto no admite (NuGet sí).
