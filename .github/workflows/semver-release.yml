@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.gitversion.outputs.semVer }}
       tag-created: ${{ steps.check-tag.outputs.exists == 'false' }}
@@ -44,7 +44,7 @@ jobs:
       NUGET_GITHUB_TOKEN: ${{ secrets.NUGET_FEED_TOKEN }}
     steps:
       - name: Checkout con historial completo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0 # el cálculo de versión necesita historial y tags completos
 
@@ -119,7 +119,7 @@ jobs:
 
       - name: Configurar .NET
         if: steps.check-tag.outputs.exists == 'false'
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
 
@@ -141,7 +141,7 @@ jobs:
 
       - name: Crear GitHub Release
         if: steps.check-tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.gitversion.outputs.semVer }}
           generate_release_notes: true
