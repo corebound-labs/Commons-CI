@@ -12,18 +12,23 @@ Calcula la versión del proyecto a partir de los mensajes de commit
 ([Conventional Commits](https://www.conventionalcommits.org/)) desde el último
 tag `v*`, y:
 
-- `feat:` sube el **major**; `fix:` sube el **minor**; cualquier otro tipo
-  (`docs`, `chore`, `refactor`, `test`, `ci`…) mantiene `X.Y.Z`. Gana el bump
-  más alto entre los commits nuevos (incluidos los de ramas fusionadas).
-- El sufijo es `-MMdd.n`: día (`MMdd`, en la zona horaria del input `timezone`,
-  por defecto `Europe/Madrid`) y número de build de ese día. Ej.: `2.0.0-1004.3`
-  es la tercera versión del 4 de octubre. El punto separa ambos números para
-  que el orden NuGet/SemVer sea el cronológico.
+- `feat:` sube el **major**; `fix:` sube el **minor**. Cualquier otro tipo
+  (`docs`, `chore`, `refactor`, `test`, `ci`…) **no cambia** `X.Y.Z`: por eso los
+  commits deben ser solo `feat` o `fix` si se quiere que la versión avance. Gana
+  el bump más alto entre los commits nuevos (incluidos los de ramas fusionadas).
+- El sufijo es `-MMddn`: día (`MMdd`, en la zona horaria del input `timezone`,
+  por defecto `Europe/Madrid`) seguido del número de build de ese día, sin
+  separador. Ej.: `2.0.0-10043` es la tercera versión del 4 de octubre.
+  Limitaciones conocidas: desde la build 10 del día el orden NuGet/SemVer deja
+  de ser cronológico (`100410` > `10051`), y de enero a septiembre queda un cero
+  inicial (`01041`), que SemVer estricto no admite (NuGet sí).
+- El núcleo `X.Y.Z` parte del más alto entre los tags `v*` alcanzables; los
+  commits "nuevos" son los que ningún tag contiene todavía.
 - Un commit que ya tiene tag conserva su versión (un re-run no crea otro tag).
 
 Y después:
 
-1. Crea un tag de Git (`vX.Y.Z-MMdd.n`).
+1. Crea un tag de Git (`vX.Y.Z-MMddn`).
 2. Crea un GitHub Release con changelog autogenerado.
 3. Estampa la versión en los `.csproj` indicados vía `dotnet build /p:Version=...`.
 

@@ -58,29 +58,40 @@ jobs:
           set -euo pipefail
 
           # Reglas: feat -> major, fix -> minor, cualquier otro tipo mantiene el núcleo X.Y.Z.
-          # Sufijo: -MMdd.<n>, con n = número de build del día (1, 2, 3...). El punto es necesario:
-          # sin él, "1004"+"10" (100410) ordenaría por encima de "1005"+"1" (10051).
+          # Sufijo: -MMddn, con n = número de build del día (1, 2, 3...). Ej.: 10043 = 3.ª build del 4 de octubre.
+          # Sin separador, a partir de la build 10 del día el orden NuGet deja de ser cronológico
+          # (100410 > 10051); con ceros a la izquierda (enero-septiembre) tampoco es SemVer estricto.
 
-          # Un commit que ya lleva tag de versión lo conserva (un re-run no crea un segundo tag).
-          existing=$(git tag --points-at HEAD --list 'v[0-9]*' | head -n1 || true)
+          # Núcleo más alto entre los tags alcanzables desde HEAD (los núcleos solo crecen), no el
+          # "más cercano": dos tags pueden apuntar al mismo commit (p. ej. la versión base).
+          core_of() { sed 's/^v//; s/-.*//' | sort -V | tail -n1; }
+
+          existing=$(git tag --points-at HEAD --list 'v[0-9]*' | sed 's/-.*//' | sort -V | tail -n1 || true)
           if [ -n "$existing" ]; then
-            version=${existing#v}
+            # Un commit que ya lleva tag de versión lo conserva (un re-run no crea un segundo tag).
+            version=$(git tag --points-at HEAD --list "${existing}-*" | sort -V | tail -n1)
+            version=${version#v}
           else
-            last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
-            if [ -n "$last" ]; then
-              core=${last#v}; core=${core%%-*}; range="$last..HEAD"
+            reachable=$(git tag --merged HEAD --list 'v[0-9]*')
+            if [ -n "$reachable" ]; then
+              core=$(echo "$reachable" | core_of)
+              # Commits que ningún tag contiene todavía (incluye los de ramas fusionadas).
+              # shellcheck disable=SC2086
+              range_args="HEAD --not $(echo $reachable)"
             else
-              core=1.0.0; range="HEAD"
+              core=1.0.0
+              range_args="HEAD"
             fi
             IFS=. read -r major minor patch <<< "$core"
 
             bump=none
+            # shellcheck disable=SC2086
             while IFS= read -r subject; do
               case "$subject" in
                 feat:*|feat\(*\)*:*|feat!:*) bump=major; break ;;
                 fix:*|fix\(*\)*:*|fix!:*) bump=minor ;;
               esac
-            done < <(git log --format=%s "$range")
+            done < <(git log --format=%s $range_args)
 
             case "$bump" in
               major) major=$((major + 1)); minor=0; patch=0 ;;
@@ -88,8 +99,8 @@ jobs:
             esac
 
             day=$(TZ="$VERSION_TZ" date +%m%d)
-            n=$(( $(git tag --list "v*-${day}.*" | wc -l) + 1 ))
-            version="${major}.${minor}.${patch}-${day}.${n}"
+            n=$(( $(git tag --list "v*-${day}[0-9]*" | wc -l) + 1 ))
+            version="${major}.${minor}.${patch}-${day}${n}"
           fi
           echo "Versión calculada: $version"
           echo "semVer=$version" >> "$GITHUB_OUTPUT"
