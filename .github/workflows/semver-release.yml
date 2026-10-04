@@ -11,6 +11,11 @@ on:
         description: 'Rutas de los .csproj a versionar, separadas por coma'
         required: true
         type: string
+      timezone:
+        description: 'Zona horaria con la que se calcula el MMdd del sufijo de versión'
+        required: false
+        default: 'Europe/Madrid'
+        type: string
     outputs:
       new-version:
         description: 'Versión semántica generada (sin el prefijo v)'
@@ -41,16 +46,53 @@ jobs:
       - name: Checkout con historial completo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # GitVersion necesita todo el historial, no solo el último commit
+          fetch-depth: 0 # el cálculo de versión necesita historial y tags completos
 
-      - name: Instalar GitVersion
-        uses: gittools/actions/gitversion/setup@v4
-        with:
-          versionSpec: '6.x'
-
+      # Versión propia en vez de GitVersion: no sabe de "build del día" y su increment/next-version
+      # dejaban inertes las reglas de feat/fix.
       - name: Calcular versión
         id: gitversion
-        uses: gittools/actions/gitversion/execute@v4
+        env:
+          VERSION_TZ: ${{ inputs.timezone }}
+        run: |
+          set -euo pipefail
+
+          # Reglas: feat -> major, fix -> minor, cualquier otro tipo mantiene el núcleo X.Y.Z.
+          # Sufijo: -MMdd.<n>, con n = número de build del día (1, 2, 3...). El punto es necesario:
+          # sin él, "1004"+"10" (100410) ordenaría por encima de "1005"+"1" (10051).
+
+          # Un commit que ya lleva tag de versión lo conserva (un re-run no crea un segundo tag).
+          existing=$(git tag --points-at HEAD --list 'v[0-9]*' | head -n1 || true)
+          if [ -n "$existing" ]; then
+            version=${existing#v}
+          else
+            last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+            if [ -n "$last" ]; then
+              core=${last#v}; core=${core%%-*}; range="$last..HEAD"
+            else
+              core=1.0.0; range="HEAD"
+            fi
+            IFS=. read -r major minor patch <<< "$core"
+
+            bump=none
+            while IFS= read -r subject; do
+              case "$subject" in
+                feat:*|feat\(*\)*:*|feat!:*) bump=major; break ;;
+                fix:*|fix\(*\)*:*|fix!:*) bump=minor ;;
+              esac
+            done < <(git log --format=%s "$range")
+
+            case "$bump" in
+              major) major=$((major + 1)); minor=0; patch=0 ;;
+              minor) minor=$((minor + 1)); patch=0 ;;
+            esac
+
+            day=$(TZ="$VERSION_TZ" date +%m%d)
+            n=$(( $(git tag --list "v*-${day}.*" | wc -l) + 1 ))
+            version="${major}.${minor}.${patch}-${day}.${n}"
+          fi
+          echo "Versión calculada: $version"
+          echo "semVer=$version" >> "$GITHUB_OUTPUT"
 
       - name: Comprobar si el tag ya existe
         id: check-tag

@@ -8,11 +8,22 @@ Equivalente al concepto de "shared pipeline templates" de Azure DevOps.
 
 ### `semver-release.yml` — Versionado semántico automático
 
-Calcula la versión semántica del proyecto usando
-[GitVersion](https://gitversion.net/) a partir de los mensajes de commit
-([Conventional Commits](https://www.conventionalcommits.org/)), y:
+Calcula la versión del proyecto a partir de los mensajes de commit
+([Conventional Commits](https://www.conventionalcommits.org/)) desde el último
+tag `v*`, y:
 
-1. Crea un tag de Git (`vX.Y.Z`).
+- `feat:` sube el **major**; `fix:` sube el **minor**; cualquier otro tipo
+  (`docs`, `chore`, `refactor`, `test`, `ci`…) mantiene `X.Y.Z`. Gana el bump
+  más alto entre los commits nuevos (incluidos los de ramas fusionadas).
+- El sufijo es `-MMdd.n`: día (`MMdd`, en la zona horaria del input `timezone`,
+  por defecto `Europe/Madrid`) y número de build de ese día. Ej.: `2.0.0-1004.3`
+  es la tercera versión del 4 de octubre. El punto separa ambos números para
+  que el orden NuGet/SemVer sea el cronológico.
+- Un commit que ya tiene tag conserva su versión (un re-run no crea otro tag).
+
+Y después:
+
+1. Crea un tag de Git (`vX.Y.Z-MMdd.n`).
 2. Crea un GitHub Release con changelog autogenerado.
 3. Estampa la versión en los `.csproj` indicados vía `dotnet build /p:Version=...`.
 
@@ -53,9 +64,8 @@ jobs:
     secrets: inherit
 ```
 
-El repo consumidor necesita además un archivo `GitVersion.yml` en su raíz
-(ver ejemplo en la documentación de [GitVersion](https://gitversion.net/docs/reference/configuration))
-que defina cómo interpretar los mensajes de commit para cada tipo de bump.
+El repo consumidor no necesita ningún archivo de configuración: las reglas
+viven en el propio workflow.
 
 #### Inputs
 
@@ -63,6 +73,7 @@ que defina cómo interpretar los mensajes de commit para cada tipo de bump.
 |-------------------|-----------|-----------------------------------------------------------|
 | `dotnet-version`  | sí        | Versión del SDK de .NET a instalar (ej. `10.0.x`)         |
 | `csproj-paths`    | sí        | Rutas de los `.csproj` a versionar, separadas por coma    |
+| `timezone`        | no        | Zona horaria del `MMdd` del sufijo (default `Europe/Madrid`) |
 
 #### Outputs
 
